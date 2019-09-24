@@ -10,8 +10,8 @@ import pandas as pd
 import psycopg2
 import matplotlib.pyplot as plt
 #%%
-def read_commute():
-    with open(r'D:\Data\wjcase_home_company.txt','r',encoding='UTF-8') as file:
+def read_commute(path):
+    with open(path,'r',encoding='UTF-8') as file:
         lines=file.readlines()
     # 365962 lines in total
     line_splits=[i.split()[0].split(',') for i in lines]
@@ -47,11 +47,12 @@ def read_commute():
     
     commute=pd.concat([abnormal,commute])
     return commute
-commute=read_commute()
-commute.tm_work_lower.value_counts().sort_index()
+commute=read_commute('E:/RESEARCH/Transportation/Data/wjcase_home_company.txt')
+commute.to_csv('E:/RESEARCH/Transportation/Data/wjcase_home_company.csv',index=False)
+# commute.tm_work_lower.value_counts().sort_index()
 
-def read_ic():
-    with open(r'D:\Data\wjcase_ic_card.txt','r',encoding='UTF-8') as file:
+def read_ic(path):
+    with open(path,'r',encoding='UTF-8') as file:
         lines=file.readlines()
     line_splits=[i.split(',')[:17] for i in lines]
     col_name=line_splits[0]

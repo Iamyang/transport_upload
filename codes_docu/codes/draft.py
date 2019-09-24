@@ -13,7 +13,45 @@ from sklearn.cluster import DBSCAN
 from scipy.stats import entropy
 import math
 import time   
-        
+#%% functions
+def get_query(query):
+    conn = psycopg2.connect(database="transport", user="postgres", password="123", host="127.0.0.1", port="5432")
+    cur = conn.cursor()
+    print('Connect success')
+    cur.execute(query)
+    rows = cur.fetchall()
+    conn.close()
+    print('Operation finished.')
+    return rows 
+def plt_bar(freq):
+    fig,ax=plt.subplots(figsize=(7,5))
+    ax.bar(np.arange(len(freq)),freq)
+    ax.set_xticks(np.arange(len(freq)))
+    ax.set_xticklabels(['[1,5]','[6,10]','[11,15]','[16,20]'])
+    ax.set_xlabel(u'Magnitude')
+    ax.set_ylabel(u'Frequecy')
+    plt.show()
+def plt_hist(x,n_bins,histtype):
+    fig,ax=plt.subplots(figsize=(7,5))
+    ax.hist(x,n_bins,histtype=histtype)
+    plt.show()
+#%% 9.23 flow_pt,flow_subway
+    query='''select	magnitude
+             from flow_pt 
+        '''
+    rows=get_query(query)
+    mag_pt=np.array([i[0] for i in rows])
+    query='''select	magnitude
+             from flow_subway 
+        '''
+    rows=get_query(query)
+    mag_sub=np.array([i[0] for i in rows])
+    query='''select	magnitude
+             from flow_pt_subway 
+        '''
+    rows=get_query(query)
+    mag_pt_sub=np.array([i[0] for i in rows])
+    print(max(mag_pt),max(mag_sub),max(mag_pt_sub))
 #%% Read spatial and temporal distance
     distance=[]
     conn = psycopg2.connect(database="transport", user="postgres", password="123", host="127.0.0.1", port="5432")
@@ -147,15 +185,7 @@ import time
                                 ,'dist0_metro_cnt':temp[3]})
 
 #%% 9.11
-def get_query(query):
-    conn = psycopg2.connect(database="transport", user="postgres", password="123", host="127.0.0.1", port="5432")
-    cur = conn.cursor()
-    print('Connect success')
-    cur.execute(query)
-    rows = cur.fetchall()
-    conn.close()
-    print('Operation finished.')
-    return rows
+
 query='''select	o_grid
     			,d_grid
     			,sum(magnitude) as magnitude
@@ -167,14 +197,7 @@ magnitude=list(zip(*get_query(query)))[2]
 magnitude=np.array([int(i) for i in magnitude])
 
 
-def plt_bar(freq):
-    fig,ax=plt.subplots(figsize=(7,5))
-    ax.bar(np.arange(len(freq)),freq)
-    ax.set_xticks(np.arange(len(freq)))
-    ax.set_xticklabels(['[1,5]','[6,10]','[11,15]','[16,20]'])
-    ax.set_xlabel(u'Magnitude')
-    ax.set_ylabel(u'Frequecy')
-    plt.show()
+
 freq=[]
 for i in range(1,21,5):
     freq.append(magnitude[(magnitude>=i) & (magnitude<i+5)].shape[0]/magnitude.shape[0])

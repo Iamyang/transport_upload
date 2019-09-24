@@ -1,17 +1,113 @@
---9.11------------
-drop table if exists test;
-create table test as(
+--9.23------------
+DROP TABLE if EXISTS flow_pt;
+CREATE TABLE flow_pt AS(
+    with tb AS(
+        SELECT *
+                ,extract(epoch from t_tm::time-f_tm::time) AS dura
+                ,ST_Distance(f_position,t_position) AS dist 
+        FROM    link_20190301
+        WHERE f_mode='GJ' AND t_mode='GJ'
+    )
+    select  ST_Makeline(f_position,t_position) as geom
+            ,fst_name
+            ,tst_name
+			,count(*) as magnitude
+            ,percentile_disc(0.5) within group (order by dura) AS dura
+            ,percentile_disc(0.5) within group (order by dist/dura) AS speed 
+            ,percentile_disc(0.7) within group (order by extract(epoch from t_tm::time-f_tm::time)) FILTER (WHERE f_tm::time>'06:00:00'::time AND f_tm::time<='09:00:00'::time)
+             AS mor_dura
+            ,percentile_disc(0.7) within group (order by extract(epoch from t_tm::time-f_tm::time)) FILTER (WHERE f_tm::time>'17:00:00'::time AND f_tm::time<='21:00:00'::time)
+             AS eve_dura
+            ,percentile_disc(0.7) within group (order by extract(epoch from t_tm::time-f_tm::time)) FILTER (WHERE f_tm::time>'09:00:00'::time AND f_tm::time<='17:00:00'::time)
+             AS noo_dura
+	from tb
+	group by f_position,t_position,fst_name,tst_name
+);
+DROP TABLE if EXISTS flow_subway;
+CREATE TABLE flow_subway AS(
+    with tb AS(
+        SELECT *
+                ,extract(epoch from t_tm::time-f_tm::time) AS dura
+                ,ST_Distance(f_position,t_position) AS dist 
+        FROM    link_20190301
+        WHERE f_mode='DT' AND t_mode='DT'
+    )
+    select  ST_Makeline(f_position,t_position) as geom
+            ,fst_name
+            ,tst_name
+			,count(*) as magnitude
+            ,percentile_disc(0.5) within group (order by dura) AS dura
+            ,percentile_disc(0.5) within group (order by dist/dura) AS speed 
+            ,percentile_disc(0.7) within group (order by extract(epoch from t_tm::time-f_tm::time)) FILTER (WHERE f_tm::time>'06:00:00'::time AND f_tm::time<='09:00:00'::time)
+             AS mor_dura
+            ,percentile_disc(0.7) within group (order by extract(epoch from t_tm::time-f_tm::time)) FILTER (WHERE f_tm::time>'17:00:00'::time AND f_tm::time<='21:00:00'::time)
+             AS eve_dura
+            ,percentile_disc(0.7) within group (order by extract(epoch from t_tm::time-f_tm::time)) FILTER (WHERE f_tm::time>'09:00:00'::time AND f_tm::time<='17:00:00'::time)
+             AS noo_dura
+	from tb
+	group by f_position,t_position,fst_name,tst_name
+);
+DROP TABLE if EXISTS flow_pt_subway;
+CREATE TABLE flow_pt_subway AS(
+    with tb AS(
+        SELECT *
+                ,extract(epoch from t_tm::time-f_tm::time) AS dura
+                ,ST_Distance(f_position,t_position) AS dist 
+        FROM    link_20190301
+        WHERE (f_mode='DT' AND t_mode='GJ') OR (f_mode='GJ' AND t_mode='DT')
+    )
+    select  ST_Makeline(f_position,t_position) as geom
+            ,fst_name
+            ,tst_name
+			,count(*) as magnitude
+            ,percentile_disc(0.5) within group (order by dura) AS dura 
+            ,percentile_disc(0.5) within group (order by dist/dura) AS speed 
+            ,percentile_disc(0.7) within group (order by extract(epoch from t_tm::time-f_tm::time)) FILTER (WHERE f_tm::time>'06:00:00'::time AND f_tm::time<='09:00:00'::time)
+             AS mor_dura
+            ,percentile_disc(0.7) within group (order by extract(epoch from t_tm::time-f_tm::time)) FILTER (WHERE f_tm::time>'17:00:00'::time AND f_tm::time<='21:00:00'::time)
+             AS eve_dura
+            ,percentile_disc(0.7) within group (order by extract(epoch from t_tm::time-f_tm::time)) FILTER (WHERE f_tm::time>'09:00:00'::time AND f_tm::time<='17:00:00'::time)
+             AS noo_dura
+	from tb
+	group by f_position,t_position,fst_name,tst_name
+);
+--9.22------------
+drop table if exists inter_grid_aggr;
+create table inter_grid_aggr as(
 	select	o_grid
 			,d_grid
 			,min(mor_dura+(dist_o+dist_d)/1) as mor_dura
-			,min(eve_dura) as eve_dura
-			,min(noo_dura) as noo_dura
+			,min(eve_dura+(dist_o+dist_d)/1) as eve_dura
+			,min(noo_dura+(dist_o+dist_d)/1) as noo_dura
 			,sum(magnitude) as magnitude
 	from inter_grid
 	group by o_grid,d_grid
 )
 
-
+DROP TABLE if EXISTS hot_inter_grid;
+CREATE TABLE hot_inter_grid AS(
+    with hot_inter as(
+        select *
+        from inter_grid_aggr
+        where magnitude>=1000
+    ),
+    drive as(
+        select  ST_Transform(ST_GeomFromText('POINT('||o_lon||' '||o_lat||')',4326),32650)::geometry(Point,32650) as o_center
+                ,ST_Transform(ST_GeomFromText('POINT('||d_lon||' '||d_lat||')',4326),32650)::geometry(Point,32650) as d_center
+                ,driving_dist
+        from drive_dist
+    )
+    select  ST_Makeline(o_center,d_center) as geom
+            ,magnitude
+            ,driving_dist/least(mor_dura,eve_dura,noo_dura) as max_speed
+            ,driving_dist/mor_dura as mor_speed
+            ,driving_dist/eve_dura as eve_speed
+            ,driving_dist/noo_dura as noo_speed
+    FROM    hot_inter AS tb 
+    JOIN    drive AS tb1
+    ON  ST_Distance(ST_Centroid(tb.o_grid),o_center)<1
+    AND ST_Distance(ST_Centroid(tb.d_grid),d_center)<1
+)
 
 --9.8-------------
 drop table if exists inter_sta_link;
